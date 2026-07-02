@@ -1,0 +1,131 @@
+services:
+
+  mariadb:
+    build: requirements/mariadb
+    container_name: mariadb
+    image: mariadb
+    env_file: .env
+    secrets:
+      - db_root_password
+      - db_password
+    volumes:
+      - wp_db:/var/lib/mysql
+    networks:
+      - inception
+    restart: always
+
+  wordpress:
+    build: requirements/wordpress
+    container_name: wordpress
+    image: wordpress
+    env_file: .env
+    secrets:
+      - db_password
+      - credentials
+    depends_on:
+      - mariadb
+      - redis
+    volumes:
+      - wp_files:/var/www/html
+    networks:
+      - inception
+    restart: always
+
+  nginx:
+    build: requirements/nginx
+    container_name: nginx
+    image: nginx
+    env_file: .env
+    depends_on:
+      - wordpress
+      - adminer
+      - static-site
+    ports:
+      - "443:443"
+    volumes:
+      - wp_files:/var/www/html:ro
+    networks:
+      - inception
+    restart: always
+
+  redis:
+    build: requirements/bonus/redis
+    container_name: redis
+    image: redis
+    networks:
+      - inception
+    restart: always
+
+  ftp:
+    build: requirements/bonus/ftp
+    container_name: ftp
+    image: ftp
+    env_file: .env
+    secrets:
+      - credentials
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+    volumes:
+      - wp_files:/home/ftpuser/ftp
+    networks:
+      - inception
+    restart: always
+
+  adminer:
+    build: requirements/bonus/adminer
+    container_name: adminer
+    image: adminer
+    depends_on:
+      - mariadb
+    networks:
+      - inception
+    restart: always
+
+  static-site:
+    build: requirements/bonus/static-site
+    container_name: static-site
+    image: static-site
+    networks:
+      - inception
+    restart: always
+
+  filebrowser:
+    build: requirements/bonus/filebrowser
+    container_name: filebrowser
+    image: filebrowser
+    env_file:
+      - .env
+    ports:
+      - "8080:8082"
+    volumes:
+      - wp_files:/srv:ro
+    networks:
+      - inception
+    restart: always
+
+secrets:
+  db_root_password:
+    file: ../secrets/db_root_password.txt
+  db_password:
+    file: ../secrets/db_password.txt
+  credentials:
+    file: ../secrets/credentials.txt
+
+networks:
+  inception:
+    driver: bridge
+
+volumes:
+  wp_db:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${DATA_DIR}/mariadb
+      o: bind
+  wp_files:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${DATA_DIR}/wordpress
+      o: bind
