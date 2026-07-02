@@ -7,7 +7,8 @@ DATA_DIR = /home/$(DOMAIN_LOGIN)/data
 all: up
 
 up:
-	@mkdir -p $(DATA_DIR)/mariadb $(DATA_DIR)/wordpress
+	@sudo mkdir -p $(DATA_DIR)/mariadb $(DATA_DIR)/wordpress
+	@sudo chown -R $(USER):$(USER) /home/$(DOMAIN_LOGIN)
 	@docker compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE) up --build -d
 
 down:
