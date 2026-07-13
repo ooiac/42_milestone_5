@@ -182,4 +182,4 @@ config.
 - [epoll(7) — Linux man page](https://man7.org/linux/man-pages/man7/epoll.7.html)
 - [nginx configuration documentation](https://nginx.org/en/docs/)
 - [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/)
-- **AI assistance**: This project was developed with the help of Claude (Anthropic) for code generation, architecture design, and debugging of the C++98 implementation.
+- **AI assistance**: This project was developed with the help of Claude (Anthropic) for debugging of the C++98 implementation.
