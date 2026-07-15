@@ -1,0 +1,14 @@
+//
+// Created by caida-si on 15/07/2026.
+//
+
+#ifndef FUNCTIONS_HPP
+#define FUNCTIONS_HPP
+
+#include "Base.hpp"
+
+Base* generate(void);
+void identify(Base* p);
+void identify(Base& p);
+
+#endif
