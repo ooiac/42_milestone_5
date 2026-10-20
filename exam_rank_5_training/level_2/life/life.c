@@ -33,7 +33,7 @@ int main(int ac, char **av) {
 							n += board[i + di][j + dj];
 					}
 				}
-				next[i][j] = (board[i][j] && (n == 2|| n == 3) || (!board[i][j] && n == 3));
+				next[i][j] = ((board[i][j] && (n == 2|| n == 3)) || (!board[i][j] && n == 3));
 			}
 		}
 		for (int i = 0; i < h; i++) {
