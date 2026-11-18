@@ -1,88 +1,81 @@
-*This project has been created as part of the 42 curriculum by caida-si*
+*42 Common Core project by `caida-si`.*
 
 # Inception
 
-## Description
+A WordPress stack built with Docker Compose. Each service has its own Dockerfile based on `debian:bookworm` rather than using prebuilt WordPress, Nginx, or MariaDB service images. The mandatory stack is Nginx, WordPress/PHP-FPM, and MariaDB; additional services extend it.
 
-A Docker-based infrastructure running a full WordPress stack with bonus services, built from scratch. Every service runs in its own container built from `debian:bookworm`. No pre-built images from Docker Hub are used.
+## Services
 
-**Services:**
-- **Nginx** — reverse proxy, TLS 1.2/1.3 (self-signed), port 443 only
-- **WordPress** — WordPress 7 + PHP-FPM 8.2
-- **MariaDB** — database for WordPress
-- **Redis** — object cache for WordPress *(bonus)*
-- **FTP** — vsftpd pointing to the WordPress volume *(bonus)*
-- **Static site** — portfolio page in HTML/CSS, no PHP *(bonus)*
-- **Adminer** — database management UI *(bonus)*
-- **File Browser** — web-based file manager for the WordPress volume *(bonus)*
+| Container | Role |
+| --- | --- |
+| **Nginx** | HTTPS entry point and reverse proxy, using a local self-signed TLS certificate. |
+| **WordPress + PHP-FPM** | Runs the site and forwards its database queries to MariaDB. |
+| **MariaDB** | Stores WordPress content and account data. |
+| **Redis** | WordPress object cache (bonus). |
+| **vsftpd** | FTP access to the WordPress files (bonus). |
+| **Static site** | An HTML/CSS portfolio served separately (bonus). |
+| **Adminer** | Database management interface (bonus). |
+| **File Browser** | Browser-based file management (bonus). |
 
-All containers communicate over a user-defined Docker bridge network (`inception`). Data is persisted via named volumes bound to `/home/caida-si/data/` on the host.
-
-```
-  HTTPS :443 ──► nginx ──► wordpress (php-fpm :9000)
-                    │   └──► adminer (:8080)
-                    │   └──► static-site (:80)
-                    │
-  FTP :21 ─────────► ftp
-  :21000–21010       │
-                    │   wordpress ──► mariadb (:3306)
-                    │   wordpress ──► redis (:6379)
-  HTTP :8080 ──────► filebrowser
+```text
+HTTPS :443 -> Nginx -> WordPress / PHP-FPM :9000 -> MariaDB :3306
+                  |                 |
+                  |                 +-> Redis :6379
+                  +-> Adminer / static site
+FTP :21, passive ports -> vsftpd -> WordPress volume
+HTTP :8080 -> File Browser
 ```
 
-## Instructions
+Services resolve each other's names through the Compose bridge network (`inception`). Database and site files are persisted in named volumes backed by host directories under `/home/caida-si/data/`, so deleting a container doesn't automatically delete the data. The host directory and hostname are specific to the project setup; adapt them if you're running it elsewhere.
 
-### Prerequisites
+## Setup
 
-- Docker and Docker Compose v2
-- User in the `docker` group (`sudo usermod -aG docker $USER`, then re-login)
+Requires Docker and Docker Compose v2 on Linux. Docker commands need to work for your user; membership in the `docker` group is one option, but that group grants root-equivalent Docker access.
 
-### Setup
+1. Add the local hostname:
 
-1. Add the domain to `/etc/hosts`:
-   ```bash
-   echo "127.0.0.1 caida-si.42.fr" | sudo tee -a /etc/hosts
+   ```sh
+   echo '127.0.0.1 caida-si.42.fr' | sudo tee -a /etc/hosts
    ```
 
-2. Create `srcs/.env` with the required variables (see `DEV_DOC.md`)
+2. Create `srcs/.env` with the variables required by the Compose configuration. The expected entries are described in [`DEV_DOC.md`](DEV_DOC.md). Don't commit real credentials.
 
-3. Create the secrets:
-   ```bash
+3. Create the secret files expected by the services:
+
+   ```sh
    mkdir -p secrets
-   echo "<root_password>"      > secrets/db_root_password.txt
-   echo "<db_password>"        > secrets/db_password.txt
-   echo "wp_master:<password>" > secrets/credentials.txt
+   printf '%s\n' '<root_password>' > secrets/db_root_password.txt
+   printf '%s\n' '<db_password>'   > secrets/db_password.txt
+   printf '%s\n' 'wp_master:<password>' > secrets/credentials.txt
    ```
+
+   Replace the placeholders with real values, and keep these files private. Docker mounts them under `/run/secrets/` in the relevant containers rather than exposing their contents through ordinary environment variables.
 
 4. Build and start:
-   ```bash
+
+   ```sh
    make
    ```
 
-5. Open `https://caida-si.42.fr` in your browser (accept the self-signed certificate warning)
+5. Open `https://caida-si.42.fr` and accept the warning for the local self-signed certificate.
 
-For full usage and developer instructions see `USER_DOC.md` and `DEV_DOC.md`.
+The main Makefile drives Docker Compose; `USER_DOC.md` covers day-to-day use, while `DEV_DOC.md` explains the configuration, secrets, and implementation.
 
-## Resources
+## A few implementation details
 
-### References
+- Nginx is the HTTPS entry point for the WordPress site and reverse-proxied services. TLS terminates there before traffic reaches internal containers.
+- WordPress runs through PHP-FPM rather than an Apache image. MariaDB has its own initialization and persistent data directory.
+- Redis caches WordPress objects; it is not a replacement for the database.
+- FTP, Adminer, and File Browser are optional administrative interfaces, with separate access and security considerations.
+- Inside the containers, network service names such as `mariadb` are resolved by Compose DNS. `localhost` would refer to the current container, not the database container.
 
-- [Docker documentation](https://docs.docker.com/)
-- [Docker Compose documentation](https://docs.docker.com/compose/)
-- [MariaDB knowledge base](https://mariadb.com/kb/en/)
-- [WP-CLI documentation](https://wp-cli.org/)
+**Be careful with cleanup targets.** This Makefile has host-wide Docker cleanup commands, including volume cleanup. `make clean` or `make fclean` can affect unrelated Docker resources on the machine. Inspect those targets before using them on a system with other containers or important volumes.
+
+## References and AI use
+
+- [Docker Compose](https://docs.docker.com/compose/)
 - [Nginx documentation](https://nginx.org/en/docs/)
-- [vsftpd documentation](https://security.appspot.com/vsftpd.html)
-- [File Browser documentation](https://filebrowser.org/)
+- [MariaDB knowledge base](https://mariadb.com/kb/en/)
+- [WP-CLI](https://wp-cli.org/)
 
-### AI usage
-
-Claude (Anthropic) was used as a learning and debugging assistant throughout this project:
-
-- Explaining how Docker bridge networking and inter-container DNS resolution work
-- Identifying the root cause of MariaDB connection failures: the `MYSQL_HOST` environment variable causes the `mysql` client to use TCP even when `--socket` is specified; fixed by adding `-hlocalhost` to force unix socket mode
-- Understanding MariaDB `unix_socket` authentication on Debian bookworm (root connects via socket, no password required for local init)
-- Explaining the difference between Docker secrets (`/run/secrets/`) and environment variables in terms of visibility via `docker inspect`
-- Structuring nginx as a reverse proxy for multiple backend services on different paths
-
-All code was written and understood by caida-si. AI was used to explain concepts and debug issues, not to generate code blindly.
+Claude was used as a learning and debugging tool, particularly for Docker networking, Nginx proxying, secrets, and MariaDB initialization. One specific issue involved `MYSQL_HOST`: it made the client use TCP despite an explicit socket setting, so the initialization path was adjusted to use the local Unix socket. The code and Compose configuration were written and reviewed by `caida-si`.
